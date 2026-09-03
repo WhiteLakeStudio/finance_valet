@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Glass Finance Wallet Pro (Firebase)</title>
+    <style>
+        :root {
+            --bg-gradient: radial-gradient(circle at 10% 20%, #111422 0%, #07090f 90%);
+            --glass-bg: rgba(25, 30, 45, 0.65);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-card: rgba(30, 38, 58, 0.45);
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --accent-red: #ff5252;
+            --accent-green: #2ecc71;
+            --accent-purple: #8e44ad;
+            --accent-blue: #3498db;
+            --accent-glow: rgba(52, 152, 219, 0.3);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            background-attachment: fixed;
+        }
+
+        .bg-glow-1 {
+            position: absolute; width: 250px; height: 250px;
+            background: rgba(142, 68, 173, 0.2); filter: blur(80px);
+            border-radius: 50%; top: -50px; left: -50px; z-index: -1;
+        }
+        .bg-glow-2 {
+            position: absolute; width: 220px; height: 220px;
+            background: rgba(52, 152, 219, 0.15); filter: blur(80px);
+            border-radius: 50%; bottom: 50px; right: -50px; z-index: -1;
+        }
+
+        .app-container {
+            width: 100%; max-width: 420px; height: 100%;
+            display: flex; flex-direction: column; position: relative;
+            background: rgba(10, 13, 20, 0.4);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-left: 1px solid var(--glass-border);
+            border-right: 1px solid var(--glass-border);
+        }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px; z-index: 10;
+        }
+        .user-info { display: flex; align-items: center; gap: 12px; }
+        .avatar {
+            width: 38px; height: 38px;
+            background: linear-gradient(135deg, #3498db, #8e44ad);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 14px; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
+        .header-icon-btn {
+            background: var(--glass-card); border: 1px solid var(--glass-border);
+            color: var(--text-primary); width: 40px; height: 40px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            backdrop-filter: blur(10px); transition: 0.2s;
+        }
+        .header-icon-btn:active { transform: scale(0.92); }
+
+        /* Статус синхронізації */
+        #syncStatus {
+            position: absolute; top: 12px; right: 75px; font-size: 10px;
+            padding: 4px 8px; border-radius: 8px; background: rgba(0,0,0,0.5);
+            color: var(--text-secondary); z-index: 20; display: none;
+        }
+
+        .content-screens {
+            flex: 1; overflow-y: auto; padding: 0 16px 95px 16px; scrollbar-width: none;
+        }
+        .content-screens::-webkit-scrollbar { display: none; }
+        .screen { display: none; flex-direction: column; gap: 16px; animation: fadeIn 0.3s ease; }
+        .screen.active { display: flex; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .cards-carousel {
+            display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none;
+        }
+        .cards-carousel::-webkit-scrollbar { display: none; }
+
+        .bank-card {
+            min-width: 290px; flex: 1;
+            background: linear-gradient(135deg, rgba(40, 48, 70, 0.75) 0%, rgba(18, 22, 33, 0.9) 100%);
+            border-radius: 22px; padding: 20px; border: 1px solid var(--glass-border);
+            position: relative; box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+            backdrop-filter: blur(12px); display: flex; flex-direction: column;
+            justify-content: space-between; height: 160px; transition: transform 0.2s;
+        }
+        .bank-card.active-indicator {
+            border: 1px solid rgba(52, 152, 219, 0.8);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+        .bank-card-top { display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 12px; font-weight: 500; }
+        .bank-card-balance { font-size: 26px; font-weight: 800; letter-spacing: 0.5px; }
+        .bank-card-footer { display: flex; justify-content: space-between; align-items: flex-end; }
+        .bank-card-name { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+        .bank-card-number { font-size: 12px; color: var(--text-secondary); letter-spacing: 1.5px; }
+
+        .actions-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .action-btn {
+            background: var(--glass-card); border: 1px solid var(--glass-border);
+            border-radius: 18px; padding: 14px 10px; display: flex; flex-direction: column;
+            align-items: center; gap: 8px; color: var(--text-primary); font-size: 12px;
+            font-weight: 500; cursor: pointer; backdrop-filter: blur(12px); transition: 0.2s;
+        }
+        .action-btn:active { transform: scale(0.95); background: rgba(52, 152, 219, 0.15); }
+        .action-icon {
+            width: 38px; height: 38px; background: rgba(255, 255, 255, 0.05);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 16px; border: 1px solid var(--glass-border);
+        }
+
+        .glass-box {
+            background: var(--glass-card); border: 1px solid var(--glass-border);
+            border-radius: 20px; padding: 18px; backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; margin-top: 6px; }
+        .section-title { font-size: 16px; font-weight: 700; }
+
+        .operations-list { display: flex; flex-direction: column; gap: 8px; }
+        .operation-item {
+            background: var(--glass-card); border: 1px solid var(--glass-border);
+            border-radius: 16px; padding: 12px 14px; display: flex; justify-content: space-between;
+            align-items: center; backdrop-filter: blur(10px);
+        }
+        .op-left { display: flex; align-items: center; gap: 12px; }
+        .op-icon {
+            width: 42px; height: 42px; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; font-size: 18px;
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border);
+        }
+        .op-details { display: flex; flex-direction: column; gap: 3px; }
+        .op-name { font-size: 14px; font-weight: 600; }
+        .op-date { font-size: 11px; color: var(--text-secondary); }
+        .op-amount { font-size: 14px; font-weight: 700; }
+        .op-amount.income { color: var(--accent-green); }
+
+        .stat-card-main {
+            background: var(--glass-card); border: 1px solid var(--glass-border);
+            border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px;
+            backdrop-filter: blur(12px);
+        }
+        .stat-top-row { display: flex; justify-content: space-between; align-items: center; color: var(--text-secondary); font-size: 13px; }
+        .stat-total-sum { font-size: 28px; font-weight: 850; }
+        .stat-tabs {
+            display: flex; background: rgba(10, 13, 20, 0.6); padding: 4px;
+            border-radius: 14px; border: 1px solid var(--glass-border);
+        }
+        .stat-tab {
+            flex: 1; text-align: center; padding: 10px; font-size: 13px;
+            font-weight: 600; border-radius: 10px; cursor: pointer; color: var(--text-secondary);
+            transition: 0.2s;
+        }
+        .stat-tab.active { background: var(--glass-card); color: var(--text-primary); border: 1px solid var(--glass-border); }
+
+        .category-breakdown { display: flex; flex-direction: column; gap: 10px; }
+        .category-row {
+            background: var(--glass-card); border: 1px solid var(--glass-border);
+            padding: 14px; border-radius: 16px; display: flex; justify-content: space-between;
+            align-items: center; backdrop-filter: blur(10px);
+        }
+        .category-info { display: flex; flex-direction: column; gap: 6px; width: 60%; }
+        .cat-name { font-size: 14px; font-weight: 600; }
+        .cat-bar-bg { width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+        .cat-bar-fill { height: 100%; background: linear-gradient(90deg, #3498db, #8e44ad); border-radius: 3px; }
+        .cat-right { text-align: right; }
+        .cat-sum { font-size: 14px; font-weight: 700; }
+        .cat-percent { font-size: 11px; color: var(--text-secondary); }
+
+        .car-goal-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
+            border: 1px solid rgba(46, 204, 113, 0.3); border-radius: 22px; padding: 22px;
+            display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 30px rgba(46, 204, 113, 0.1);
+            backdrop-filter: blur(12px);
+        }
+        .goal-header { display: flex; justify-content: space-between; align-items: center; }
+        .goal-title { font-size: 16px; font-weight: 700; color: #ecf0f1; }
+
+        .card-manage-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(10,13,20,0.5); padding: 12px; border-radius: 12px;
+            border: 1px solid var(--glass-border); margin-bottom: 8px;
+        }
+
+        .bottom-nav {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            background: rgba(15, 19, 30, 0.85); backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px); border-top: 1px solid var(--glass-border);
+            display: flex; justify-content: space-around; padding: 10px 0 22px 0; z-index: 100;
+        }
+        .nav-item {
+            background: none; border: none; display: flex; flex-direction: column;
+            align-items: center; gap: 4px; color: var(--text-secondary); font-size: 10px;
+            font-weight: 500; cursor: pointer; width: 20%;
+        }
+        .nav-item.active { color: var(--text-primary); text-shadow: 0 0 10px var(--accent-glow); }
+        .nav-icon { font-size: 18px; }
+
+        .modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 7, 12, 0.75); backdrop-filter: blur(10px); z-index: 1000;
+            justify-content: center; align-items: flex-end;
+        }
+        .modal-content {
+            background: rgba(20, 25, 38, 0.95); border: 1px solid var(--glass-border);
+            width: 100%; max-width: 420px; border-radius: 28px 28px 0 0; padding: 24px;
+            display: flex; flex-direction: column; gap: 16px; backdrop-filter: blur(25px);
+            max-height: 85vh; overflow-y: auto; box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+        input, select {
+            width: 100%; background: rgba(10, 13, 20, 0.6); border: 1px solid var(--glass-border);
+            border-radius: 14px; padding: 14px; color: white; font-size: 15px; outline: none;
+            backdrop-filter: blur(10px); transition: 0.2s;
+        }
+        input:focus, select:focus { border-color: var(--accent-blue); box-shadow: 0 0 10px var(--accent-glow); }
+        
+        .btn {
+            background: linear-gradient(135deg, #3498db, #2980b9); color: white; border: none;
+            border-radius: 14px; padding: 15px; font-size: 15px; font-weight: 600; cursor: pointer;
+            text-align: center; box-shadow: 0 5px 20px rgba(52, 152, 219, 0.4); transition: 0.2s;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-green { background: linear-gradient(135deg, #2ecc71, #27ae60); box-shadow: 0 5px 20px rgba(46, 204, 113, 0.4); }
+        .btn-danger { background: linear-gradient(135deg, #ff5252, #c0392b); box-shadow: 0 5px 20px rgba(255, 82, 82, 0.3); }
+        .btn-outline { background: transparent; border: 1px solid var(--glass-border); color: var(--text-secondary); box-shadow: none; }
+    </style>
+</head>
+<body>
+
+    <div class="bg-glow-1"></div>
+    <div class="bg-glow-2"></div>
+    <div id="syncStatus">Синхронізація...</div>
+
+    <div class="app-container">
+        <!-- Шапка -->
+        <header>
+            <div class="user-info">
+                <div class="avatar">ВК</div>
+                <div>
+                    <div style="font-size: 15px; font-weight: 700;">Владислав</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">WhiteLakeViz</div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="header-icon-btn" onclick="openCardModal()" title="Додати картку">💳➕</button>
+                <button class="header-icon-btn" onclick="switchScreen('screen-settings', document.querySelectorAll('.nav-item')[3])">⚙️</button>
+            </div>
+        </header>
+
+        <!-- Екрани -->
+        <div class="content-screens">
+            
+            <!-- ЕКРАН 1: Головна -->
+            <div class="screen active" id="screen-cards">
+                <div class="cards-carousel" id="cardsCarousel"></div>
+
+                <div class="actions-grid">
+                    <button class="action-btn" onclick="openAddModal('expense')">
+                        <div class="action-icon">💸</div>
+                        <span>Витрата</span>
+                    </button>
+                    <button class="action-btn" onclick="openAddModal('income')">
+                        <div class="action-icon">🟢</div>
+                        <span>Поповнення</span>
+                    </button>
+                    <button class="action-btn" onclick="switchScreen('screen-savings', document.querySelectorAll('.nav-item')[2])">
+                        <div class="action-icon">🚗</div>
+                        <span>На авто</span>
+                    </button>
+                </div>
+
+                <div class="glass-box" style="padding: 16px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
+                        <span>Ліміт витрат на місяць</span>
+                        <span id="limitTextTop" style="font-weight: 600; color: white;">0 / 0 ₴</span>
+                    </div>
+                    <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
+                        <div id="limitBarFill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); transition: 0.4s;"></div>
+                    </div>
+                </div>
+
+                <div class="section-header">
+                    <span class="section-title">Останні операції</span>
+                    <span style="font-size: 12px; color: var(--text-secondary);" id="activeCardFilterName">Усі рахунки</span>
+                </div>
+                <div class="operations-list" id="operationsList">
+                    <div style="text-align: center; color: var(--text-secondary); padding: 20px; font-size: 13px;">Завантаження...</div>
+                </div>
+            </div>
+
+            <!-- ЕКРАН 2: Аналітика -->
+            <div class="screen" id="screen-analytics">
+                <div class="stat-card-main">
+                    <div class="stat-top-row">
+                        <span>Аналітика витрат</span>
+                        <span>Поточний місяць</span>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: var(--text-secondary);" id="statTypeLabel">Витрати</div>
+                        <div class="stat-total-sum" id="statTotalSum">0.00 ₴</div>
+                    </div>
+                    <div class="stat-tabs">
+                        <div class="stat-tab active" id="tabExpense" onclick="setAnalyticsType('expense')">Витрати</div>
+                        <div class="stat-tab" id="tabIncome" onclick="setAnalyticsType('income')">Надходження</div>
+                    </div>
+                </div>
+
+                <div class="section-header">
+                    <span class="section-title">По категоріях</span>
+                </div>
+                <div class="category-breakdown" id="categoryBreakdownList"></div>
+            </div>
+
+            <!-- ЕКРАН 3: Накопичення -->
+            <div class="screen" id="screen-savings">
+                <div class="car-goal-card">
+                    <div class="goal-header">
+                        <span class="goal-title">🚗 Мета: Автомобіль</span>
+                        <span style="font-size: 14px; font-weight: 700; color: var(--accent-green);" id="carPercent">0%</span>
+                    </div>
+                    <div style="font-size: 28px; font-weight: 850;" id="carSavedSum">0 $ / 7 000 $</div>
+                    <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden;">
+                        <div id="carProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #2ecc71, #3498db); transition: 0.5s;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-secondary);" id="carUAHEquivalent">Еквівалент у грн: 0 ₴</div>
+                </div>
+
+                <div class="glass-box">
+                    <div class="section-title" style="margin-bottom: 12px;">Поповнити скарбничку авто</div>
+                    <div class="form-group">
+                        <input type="number" id="addToCarInput" placeholder="Сума у грн (наприклад, 5000)">
+                        <button class="btn btn-green" onclick="depositToCar()" style="margin-top: 6px;">Додати до цілі</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ЕКРАН 4: Налаштування -->
+            <div class="screen" id="screen-settings">
+                <div class="glass-box">
+                    <div class="section-title" style="margin-bottom: 14px;">💳 Керування картками</div>
+                    <div id="cardsManageList" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;"></div>
+                    <button class="btn btn-outline" onclick="openCardModal()">+ Додати нову картку</button>
+                </div>
+
+                <div class="glass-box" style="margin-top: 10px;">
+                    <div class="section-title" style="margin-bottom: 16px;">Параметри гаманця</div>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label">Місячний ліміт витрат (₴)</label>
+                        <input type="number" id="settingLimitInput">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label class="form-label">Ціль на авто ($)</label>
+                        <input type="number" id="settingCarGoalInput" value="7000">
+                    </div>
+                    <button class="btn" onclick="saveSettings()">Зберегти налаштування</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Нижня навігація -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" onclick="switchScreen('screen-cards', this)">
+                <span class="nav-icon">💳</span>
+                <span>Картки</span>
+            </button>
+            <button class="nav-item" onclick="switchScreen('screen-analytics', this)">
+                <span class="nav-icon">📊</span>
+                <span>Аналітика</span>
+            </button>
+            <button class="nav-item" onclick="switchScreen('screen-savings', this)">
+                <span class="nav-icon">🎯</span>
+                <span>Ціль</span>
+            </button>
+            <button class="nav-item" onclick="switchScreen('screen-settings', this)">
+                <span class="nav-icon">⚙️</span>
+                <span>Ще</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Модальні вікна -->
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="section-title" id="modalTitle">Нова операція</span>
+                <button onclick="closeAddModal()" style="background:none; border:none; color:white; font-size: 18px; cursor: pointer;">✕</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Рахунок / Картка</label>
+                <select id="tCardSelect"></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Назва (наприклад, Сільпо, Заправка)</label>
+                <input type="text" id="tName" placeholder="Місце чи опис">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Сума</label>
+                <input type="number" id="tAmount" placeholder="0.00">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Категорія</label>
+                <select id="tCategory">
+                    <option value="Їжа та доставка">🍕 Їжа та доставка</option>
+                    <option value="Житло і комуналка">🏠 Житло і комуналка</option>
+                    <option value="Проїзд та транспорт">🚗 Проїзд та транспорт</option>
+                    <option value="Дитина і садок">🧸 Дитина і садок</option>
+                    <option value="Підписки та зв'язок">📱 Підписки та зв'язок</option>
+                    <option value="Зарплата / Фриланс">🟢 Зарплата / Фриланс</option>
+                    <option value="Інше">📦 Інше</option>
+                </select>
+            </div>
+            <button class="btn" id="modalSubmitBtn" onclick="submitTransaction()">Додати</button>
+        </div>
+    </div>
+
+    <div class="modal" id="cardModal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="section-title">Нова картка / Рахунок</span>
+                <button onclick="closeCardModal()" style="background:none; border:none; color:white; font-size: 18px; cursor: pointer;">✕</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Назва картки</label>
+                <input type="text" id="cName" placeholder="Наприклад: Monobank Основна">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Назва банку</label>
+                <input type="text" id="cBank" placeholder="Monobank, ПриватБанк тощо">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Останні 4 цифри номера</label>
+                <input type="text" id="cNumber" placeholder="0471" maxlength="4">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Валюта картки</label>
+                <select id="cCurrency">
+                    <option value="₴">UAH (₴)</option>
+                    <option value="$">USD ($)</option>
+                    <option value="€">EUR (€)</option>
+                </select>
+            </div>
+            <button class="btn btn-green" onclick="createCard()">Створити картку</button>
+        </div>
+    </div>
+
+    <script>
+        // ВСТАВТЕ СЮДИ ПОСИЛАННЯ З FIREBASE КОЛАУТУ ЗІ СЛОВОМ /wallet.json НА КІНЦІ:
+        const FIREBASE_URL = "https://YOUR-PROJECT-ID-default-rtdb.europe-west1.firebasedatabase.app/wallet.json";
+
+        let state = {
+            limit: 40000,
+            goalCarUSD: 7000,
+            carSavedUAH: 0,
+            cards: [
+                { id: '1', name: 'Основна', bank: 'Monobank', number: '0471', currency: '₴' },
+                { id: '2', name: 'Фриланс USD', bank: 'PrivatBank', number: '8832', currency: '$' }
+            ],
+            transactions: []
+        };
+
+        let currentTypeModal = 'expense';
+        let analyticsType = 'expense';
+        let selectedFilterCardId = 'all';
+
+        // Завантаження даних з Firebase при старті
+        async function loadFromFirebase() {
+            showSync(true);
+            try {
+                const response = await fetch(FIREBASE_URL);
+                const data = await response.json();
+                if (data) {
+                    state = data;
+                    if (!state.cards) state.cards = [];
+                    if (!state.transactions) state.transactions = [];
+                }
+            } catch (err) {
+                console.error("Помилка завантаження з Firebase:", err);
+            }
+            showSync(false);
+            updateUI();
+        }
+
+        // Збереження даних у Firebase з миттєвим UI (Optimistic UI)
+        async function saveToFirebase() {
+            showSync(true);
+            try {
+                await fetch(FIREBASE_URL, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(state)
+                });
+            } catch (err) {
+                console.error("Помилка збереження у Firebase:", err);
+                alert("Не вдалося зберегти в хмару (перевірте інтернет)");
+            }
+            showSync(false);
+        }
+
+        function showSync(show) {
+            const el = document.getElementById('syncStatus');
+            el.style.display = show ? 'block' : 'none';
+        }
+
+        function saveData() {
+            updateUI();
+            saveToFirebase(); // асинхронно в фоні — UI працює миттєво
+        }
+
+        function switchScreen(screenId, btnElement) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+
+            if (btnElement) {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                btnElement.classList.add('active');
+            }
+            if (screenId === 'screen-settings') {
+                renderCardsManageList();
+                document.getElementById('settingLimitInput').value = state.limit;
+                document.getElementById('settingCarGoalInput').value = state.goalCarUSD;
+            }
+            updateUI();
+        }
+
+        function updateUI() {
+            renderCardsCarousel();
+            renderTransactionsList();
+            updateGlobalLimitsAndStats();
+            updateCarGoal();
+        }
+
+        function getCardBalance(cardId) {
+            let balance = 0;
+            (state.transactions || []).forEach(t => {
+                if (t.cardId === cardId) {
+                    if (t.type === 'income') balance += t.amount;
+                    else balance -= t.amount;
+                }
+            });
+            return balance;
+        }
+
+        function renderCardsCarousel() {
+            const carousel = document.getElementById('cardsCarousel');
+            carousel.innerHTML = '';
+
+            let totalUAHApprox = 0;
+            (state.transactions || []).forEach(t => {
+                const card = state.cards.find(c => c.id === t.cardId);
+                let multiplier = 1;
+                if (card && card.currency === '$') multiplier = 41.5;
+                if (card && card.currency === '€') multiplier = 45.0;
+
+                let valInUAH = t.amount * multiplier;
+                if (t.type === 'income') totalUAHApprox += valInUAH;
+                else totalUAHApprox -= valInUAH;
+            });
+
+            const allCardEl = document.createElement('div');
+            allCardEl.className = `bank-card ${selectedFilterCardId === 'all' ? 'active-indicator' : ''}`;
+            allCardEl.onclick = () => filterByCard('all');
+            allCardEl.innerHTML = `
+                <div class="bank-card-top">
+                    <span>Усі рахунки разом</span>
+                    <span>TOTAL</span>
+                </div>
+                <div class="bank-card-balance">~${Math.round(totalUAHApprox).toLocaleString()} ₴</div>
+                <div class="bank-card-footer">
+                    <div>
+                        <div class="bank-card-name">Зведений баланс</div>
+                        <div class="bank-card-number">Всі активи в екв. грн</div>
+                    </div>
+                </div>
+            `;
+            carousel.appendChild(allCardEl);
+
+            (state.cards || []).forEach(card => {
+                const balance = getCardBalance(card.id);
+                const isSelected = selectedFilterCardId === card.id;
+
+                const cardEl = document.createElement('div');
+                cardEl.className = `bank-card ${isSelected ? 'active-indicator' : ''}`;
+                cardEl.onclick = () => filterByCard(card.id);
+                cardEl.innerHTML = `
+                    <div class="bank-card-top">
+                        <span>${card.bank || 'Банк'}</span>
+                        <span>VISA / MC</span>
+                    </div>
+                    <div class="bank-card-balance">${balance.toLocaleString()} ${card.currency || '₴'}</div>
+                    <div class="bank-card-footer">
+                        <div>
+                            <div class="bank-card-name">${card.name}</div>
+                            <div class="bank-card-number">•••• •••• •••• ${card.number || '0000'}</div>
+                        </div>
+                    </div>
+                `;
+                carousel.appendChild(cardEl);
+            });
+        }
+
+        function filterByCard(cardId) {
+            selectedFilterCardId = cardId;
+            const cardObj = state.cards.find(c => c.id === cardId);
+            document.getElementById('activeCardFilterName').innerText = cardObj ? `${cardObj.bank} (${cardObj.name})` : 'Усі рахунки';
+            updateUI();
+        }
+
+        function renderTransactionsList() {
+            const listEl = document.getElementById('operationsList');
+            listEl.innerHTML = '';
+
+            let txs = state.transactions || [];
+            if (selectedFilterCardId !== 'all') {
+                txs = txs.filter(t => t.cardId === selectedFilterCardId);
+            }
+
+            if (txs.length === 0) {
+                listEl.innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 20px; font-size: 13px;">Немає операцій</div>';
+                return;
+            }
+
+            const sorted = [...txs].reverse();
+            sorted.forEach(t => {
+                const cardObj = state.cards.find(c => c.id === t.cardId);
+                const cardName = cardObj ? `${cardObj.bank}: ${cardObj.name}` : 'Картка';
+                const currency = cardObj ? cardObj.currency : '₴';
+
+                const item = document.createElement('div');
+                item.className = 'operation-item';
+                item.innerHTML = `
+                    <div class="op-left">
+                        <div class="op-icon">${getCategoryEmoji(t.category)}</div>
+                        <div class="op-details">
+                            <span class="op-name">${t.name}</span>
+                            <span class="op-date">${t.date} • <span style="color:var(--accent-blue)">${cardName}</span></span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="op-amount ${t.type === 'income' ? 'income' : 'expense'}">${t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()} ${currency}</span>
+                        <button onclick="deleteTx(${t.id})" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size: 16px;">✕</button>
+                    </div>
+                `;
+                listEl.appendChild(item);
+            });
+        }
+
+        function getCategoryEmoji(cat) {
+            if (!cat) return '📦';
+            if (cat.includes('Їжа')) return '🍕';
+            if (cat.includes('Житло')) return '🏠';
+            if (cat.includes('Проїзд')) return '🚗';
+            if (cat.includes('Дитина')) return '🧸';
+            if (cat.includes('Підписки')) return '📱';
+            if (cat.includes('Зарплата')) return '🟢';
+            return '📦';
+        }
+
+        function updateGlobalLimitsAndStats() {
+            let totalExpenseUAH = 0;
+            let totalIncomeUAH = 0;
+
+            (state.transactions || []).forEach(t => {
+                const card = state.cards.find(c => c.id === t.cardId);
+                let mult = 1;
+                if (card && card.currency === '$') mult = 41.5;
+                if (card && card.currency === '€') mult = 45.0;
+
+                let valUAH = t.amount * mult;
+                if (t.type === 'income') totalIncomeUAH += valUAH;
+                else totalExpenseUAH += valUAH;
+            });
+
+            const limit = state.limit || 40000;
+            document.getElementById('limitTextTop').innerText = `${Math.round(totalExpenseUAH).toLocaleString()} / ${limit.toLocaleString()} ₴`;
+            let percent = limit > 0 ? (totalExpenseUAH / limit) * 100 : 0;
+            if (percent > 100) percent = 100;
+            document.getElementById('limitBarFill').style.width = `${percent}%`;
+
+            updateAnalytics(totalExpenseUAH, totalIncomeUAH);
+        }
+
+        function updateAnalytics(totalExpense, totalIncome) {
+            const sumEl = document.getElementById('statTotalSum');
+            const labelEl = document.getElementById('statTypeLabel');
+            const breakdownEl = document.getElementById('categoryBreakdownList');
+            breakdownEl.innerHTML = '';
+
+            let targetSum = analyticsType === 'expense' ? totalExpense : totalIncome;
+            sumEl.innerText = `${Math.round(targetSum).toLocaleString()} ₴`;
+            labelEl.innerText = analyticsType === 'expense' ? 'Витрати (екв. ₴)' : 'Надходження (екв. ₴)';
+
+            const filtered = (state.transactions || []).filter(t => analyticsType === 'expense' ? t.type === 'expense' : t.type === 'income');
+            const map = {};
+            filtered.forEach(t => {
+                const card = state.cards.find(c => c.id === t.cardId);
+                let mult = (card && card.currency !== '₴') ? (card.currency === '$' ? 41.5 : 45.0) : 1;
+                const cat = t.category || 'Інше';
+                map[cat] = (map[cat] || 0) + (t.amount * mult);
+            });
+
+            for (let cat in map) {
+                const sum = map[cat];
+                const pct = targetSum > 0 ? Math.round((sum / targetSum) * 100) : 0;
+
+                const row = document.createElement('div');
+                row.className = 'category-row';
+                row.innerHTML = `
+                    <div class="category-info">
+                        <span class="cat-name">${cat}</span>
+                        <div class="cat-bar-bg"><div class="cat-bar-fill" style="width: ${pct}%"></div></div>
+                    </div>
+                    <div class="cat-right">
+                        <div class="cat-sum">~${Math.round(sum).toLocaleString()} ₴</div>
+                        <div class="cat-percent">${pct}%</div>
+                    </div>
+                `;
+                breakdownEl.appendChild(row);
+            }
+        }
+
+        function setAnalyticsType(type) {
+            analyticsType = type;
+            document.getElementById('tabExpense').classList.toggle('active', type === 'expense');
+            document.getElementById('tabIncome').classList.toggle('active', type === 'income');
+            updateUI();
+        }
+
+        function updateCarGoal() {
+            const goalUSD = state.goalCarUSD || 7000;
+            const savedUAH = state.carSavedUAH || 0;
+            const courseUSD = 41.5;
+            const savedUSD = Math.round(savedUAH / courseUSD);
+            const pct = Math.min(Math.round((savedUSD / goalUSD) * 100), 100);
+
+            document.getElementById('carSavedSum').innerText = `${savedUSD.toLocaleString()} $ / ${goalUSD.toLocaleString()} $`;
+            document.getElementById('carPercent').innerText = `${pct}%`;
+            document.getElementById('carProgressBar').style.width = `${pct}%`;
+            document.getElementById('carUAHEquivalent').innerText = `Еквівалент у грн: ${savedUAH.toLocaleString()} ₴`;
+        }
+
+        function depositToCar() {
+            const input = document.getElementById('addToCarInput');
+            const val = parseFloat(input.value);
+            if (isNaN(val) || val <= 0) return alert('Введіть суму');
+
+            state.carSavedUAH = (state.carSavedUAH || 0) + val;
+            input.value = '';
+            saveData();
+            alert('Переведено у скарбничку авто!');
+        }
+
+        function renderCardsManageList() {
+            const list = document.getElementById('cardsManageList');
+            list.innerHTML = '';
+
+            if (!state.cards || state.cards.length === 0) {
+                list.innerHTML = '<div style="font-size: 12px; color: var(--text-secondary);">Немає доданих карток</div>';
+                return;
+            }
+
+            state.cards.forEach(card => {
+                const item = document.createElement('div');
+                item.className = 'card-manage-item';
+                item.innerHTML = `
+                    <div>
+                        <div style="font-size: 14px; font-weight: 600;">${card.bank} — ${card.name} (${card.currency})</div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">Номер: *${card.number || '0000'}</div>
+                    </div>
+                    <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="deleteCard('${card.id}')">Закрити</button>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function deleteCard(cardId) {
+            if (confirm('Закрити цю картку? Усі транзакції по ній також будуть видалені.')) {
+                state.cards = state.cards.filter(c => c.id !== cardId);
+                state.transactions = state.transactions.filter(t => t.cardId !== cardId);
+                if (selectedFilterCardId === cardId) selectedFilterCardId = 'all';
+                saveData();
+                renderCardsManageList();
+            }
+        }
+
+        function openAddModal(type) {
+            if (!state.cards || state.cards.length === 0) {
+                alert('Спочатку створіть хоча б одну картку!');
+                openCardModal();
+                return;
+            }
+            currentTypeModal = type;
+            document.getElementById('modalTitle').innerText = type === 'expense' ? 'Нова витрата' : 'Нове поповнення';
+            document.getElementById('modalSubmitBtn').innerText = type === 'expense' ? 'Додати витрату' : 'Додати поповнення';
+            document.getElementById('modalSubmitBtn').className = type === 'expense' ? 'btn' : 'btn btn-green';
+
+            const selectCard = document.getElementById('tCardSelect');
+            selectCard.innerHTML = '';
+            state.cards.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = `${c.bank} — ${c.name} (*${c.number}) [${c.currency}]`;
+                selectCard.appendChild(opt);
+            });
+
+            document.getElementById('addModal').style.display = 'flex';
+        }
+
+        function closeAddModal() { document.getElementById('addModal').style.display = 'none'; }
+        function openCardModal() { document.getElementById('cardModal').style.display = 'flex'; }
+        function closeCardModal() { document.getElementById('cardModal').style.display = 'none'; }
+
+        function createCard() {
+            const name = document.getElementById('cName').value.trim();
+            const bank = document.getElementById('cBank').value.trim();
+            const number = document.getElementById('cNumber').value.trim();
+            const currency = document.getElementById('cCurrency').value;
+
+            if (!name || !bank) return alert('Заповніть назву картки та банк');
+
+            if (!state.cards) state.cards = [];
+            state.cards.push({
+                id: Date.now().toString(),
+                name,
+                bank,
+                number: number || '0000',
+                currency
+            });
+
+            document.getElementById('cName').value = '';
+            document.getElementById('cBank').value = '';
+            document.getElementById('cNumber').value = '';
+            closeCardModal();
+            saveData();
+        }
+
+        function submitTransaction() {
+            const name = document.getElementById('tName').value.trim();
+            const amount = parseFloat(document.getElementById('tAmount').value);
+            const category = document.getElementById('tCategory').value;
+            const cardId = document.getElementById('tCardSelect').value;
+
+            if (!name || isNaN(amount) || amount <= 0) {
+                alert('Заповніть коректно всі поля');
+                return;
+            }
+
+            const now = new Date();
+            const dateStr = `${now.getDate().toString().padStart(2, '0')}.${(now.getMonth() + 1).toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+            if (!state.transactions) state.transactions = [];
+            state.transactions.push({
+                id: Date.now(),
+                cardId,
+                name,
+                amount,
+                category,
+                type: currentTypeModal,
+                date: dateStr
+            });
+
+            document.getElementById('tName').value = '';
+            document.getElementById('tAmount').value = '';
+            closeAddModal();
+            saveData();
+        }
+
+        function deleteTx(id) {
+            state.transactions = state.transactions.filter(t => t.id !== id);
+            saveData();
+        }
+
+        function saveSettings() {
+            state.limit = parseFloat(document.getElementById('settingLimitInput').value) || state.limit;
+            state.goalCarUSD = parseFloat(document.getElementById('settingCarGoalInput').value) || state.goalCarUSD;
+            saveData();
+            alert('Налаштування збережено!');
+            switchScreen('screen-cards', document.querySelectorAll('.nav-item')[0]);
+        }
+
+        // Запуск при завантаженні сторінки
+        loadFromFirebase();
+    </script>
+</body>
+</html>
