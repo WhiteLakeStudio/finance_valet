@@ -1300,16 +1300,18 @@
         if (!currentUser) return;
         showSync(true);
         
+        // Використовуємо .once замість .on, щоб уникнути циклічних перезаписів
         db.ref('users/' + currentUser.uid).once('value', snapshot => {
             const data = snapshot.val();
-            if (data && data.cards && data.cards.length > 0) {
-                // Якщо в базі є картки та дані — завантажуємо їх у додаток
+            if (data) {
+                // Якщо в хмарі є збережені дані — підтягуємо їх у додаток
                 state = data;
+                if (!state.cards) state.cards = [];
                 if (!state.transactions) state.transactions = [];
-            } else {
-                // Якщо база повністю порожня — записуємо сюди поточні дефолтні дані один раз
-                saveToFirebase();
             }
+            // Якщо хмара порожня, нічого автоматично не перезаписуємо, 
+            // дані збережуться в хмару тільки коли ви самі щось додасте чи зміните.
+            
             showSync(false);
             updateUI();
         });
