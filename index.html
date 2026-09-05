@@ -321,6 +321,53 @@
             margin-top: 2px;
         }
 
+        /* FX rates */
+        .rates-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .rates-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .rates-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .rates-values {
+            display: flex;
+            gap: 10px;
+        }
+        .rate-pill {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 8px 12px;
+            text-align: center;
+            min-width: 72px;
+        }
+        .rate-pill-code {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .rate-pill-val {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            margin-top: 2px;
+        }
+
         /* Limit */
         .limit-card {
             background: var(--bg-card);
@@ -1082,6 +1129,23 @@
                 </div>
             </div>
 
+            <div class="rates-card" id="ratesCard">
+                <div>
+                    <div class="rates-title">Курс НБУ</div>
+                    <div class="rates-meta" id="ratesUpdated">оновлення…</div>
+                </div>
+                <div class="rates-values">
+                    <div class="rate-pill">
+                        <div class="rate-pill-code">USD</div>
+                        <div class="rate-pill-val" id="rateUsdLabel">—</div>
+                    </div>
+                    <div class="rate-pill">
+                        <div class="rate-pill-code">EUR</div>
+                        <div class="rate-pill-val" id="rateEurLabel">—</div>
+                    </div>
+                </div>
+            </div>
+
             <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div class="section-label" style="margin:0">Останні операції</div>
                 <span style="font-size:12px;color:var(--text-secondary)" id="activeCardFilterName">Усі</span>
@@ -1350,6 +1414,23 @@
         return 1;
     }
 
+    function updateRatesUI() {
+        const usdEl = document.getElementById('rateUsdLabel');
+        const eurEl = document.getElementById('rateEurLabel');
+        const meta = document.getElementById('ratesUpdated');
+        if (usdEl) usdEl.textContent = rateUSD ? rateUSD.toFixed(2) : '—';
+        if (eurEl) eurEl.textContent = rateEUR ? rateEUR.toFixed(2) : '—';
+        if (meta) {
+            if (ratesUpdatedAt) {
+                const h = String(ratesUpdatedAt.getHours()).padStart(2, '0');
+                const m = String(ratesUpdatedAt.getMinutes()).padStart(2, '0');
+                meta.textContent = 'оновлено о ' + h + ':' + m;
+            } else {
+                meta.textContent = 'офіційний курс';
+            }
+        }
+    }
+
     async function fetchLiveRates() {
         try {
             // Official NBU daily rates
@@ -1362,6 +1443,7 @@
             if (eur && eur.rate) rateEUR = Number(eur.rate);
             ratesUpdatedAt = new Date();
             console.log('Курси НБУ:', { USD: rateUSD, EUR: rateEUR });
+            updateRatesUI();
             if (typeof updateUI === 'function') {
                 try { updateUI(); } catch (e) {}
             }
@@ -1600,6 +1682,7 @@
         updateGlobalLimitsAndStats();
         updateCarGoal();
         updateHeroBalance();
+        updateRatesUI();
     }
 
     function updateHeroBalance() {
