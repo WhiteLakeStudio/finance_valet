@@ -1300,19 +1300,24 @@
         if (!currentUser) return;
         showSync(true);
         
+        // Виводимо точний UID у консоль, щоб перевірити наявність зайвих пробілів
+        console.log("Поточний UID користувача:", JSON.stringify(currentUser.uid));
+
         db.ref('users/' + currentUser.uid).once('value', snapshot => {
             const data = snapshot.val();
             console.log("Отримані дані з Firebase:", data);
             
-            if (data && data.cards) {
+            if (data && data.cards && data.cards.length > 0) {
+                // Якщо дані є в хмарі — завантажуємо їх
                 state = data;
                 if (!state.transactions) state.transactions = [];
+                updateUI();
             } else {
-                // Якщо в хмарі порожньо — записуємо поточний стан (картки та налаштування) в акаунт
-                saveToFirebase();
+                // ЖОДНОГО автоматичного збереження! Якщо дані не знайшлися, 
+                // нічого не створюємо в хмарі автоматично, щоб уникнути дублікатів.
+                console.warn("Дані за цим UID не знайдено в базі даних.");
             }
             showSync(false);
-            updateUI();
         });
     }
 
