@@ -1103,7 +1103,7 @@
         </button>
         <button class="qa-btn" onclick="switchScreen('screen-savings', document.querySelectorAll('.nav-btn')[2])">
             <div class="qa-icon" style="background:var(--accent-soft);color:var(--accent)">◆</div>
-            <span class="qa-label">На авто</span>
+            <span class="qa-label">Цілі</span>
         </button>
         <button class="qa-btn" onclick="switchScreen('screen-analytics', document.querySelectorAll('.nav-btn')[1])">
             <div class="qa-icon" style="background:rgba(191,90,242,0.15);color:var(--purple)">◎</div>
@@ -1188,23 +1188,21 @@
 
         <!-- SCREEN: SAVINGS -->
         <div class="screen" id="screen-savings">
-            <div class="screen-title">Ціль</div>
-            <div class="goal-card">
-                <div class="goal-head">
-                    <span class="goal-title">◆ Автомобіль</span>
-                    <span class="goal-badge" id="carPercent">0%</span>
-                </div>
-                <div class="goal-sum" id="carSavedSum">0 $ / 7 000 $</div>
-                <div class="goal-track">
-                    <div class="goal-fill" id="carProgressBar" style="width:0%"></div>
-                </div>
-                <div class="goal-uah" id="carUAHEquivalent">Еквівалент: 0 ₴</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="screen-title" style="margin:0">Цілі</div>
+                <button type="button" class="btn btn-outline" style="padding:8px 14px;font-size:13px;width:auto" onclick="openGoalModal()">+ Нова ціль</button>
             </div>
-            <div class="panel">
+            <div id="goalsList"></div>
+            <div class="panel" id="depositPanel">
                 <div style="font-size:15px;font-weight:650;margin-bottom:12px;">Поповнити скарбничку</div>
+                <div class="field" style="margin-bottom:10px">
+                    <label>Ціль</label>
+                    <select id="depositGoalSelect"></select>
+                </div>
                 <div class="field">
-                    <input type="number" id="addToCarInput" placeholder="Сума в грн">
-                    <button class="btn btn-green" style="margin-top:10px" onclick="depositToCar()">Додати до цілі</button>
+                    <label>Сума в грн</label>
+                    <input type="number" id="addToGoalInput" placeholder="Наприклад, 5000" inputmode="decimal">
+                    <button class="btn btn-green" style="margin-top:10px" onclick="depositToGoal()">Додати до цілі</button>
                 </div>
             </div>
         </div>
@@ -1228,13 +1226,9 @@
             </div>
             <div class="panel">
                 <div style="font-size:15px;font-weight:650;margin-bottom:14px;">Параметри</div>
-                <div class="field" style="margin-bottom:12px">
+                <div class="field" style="margin-bottom:16px">
                     <label>Місячний ліміт (₴)</label>
                     <input type="number" id="settingLimitInput">
-                </div>
-                <div class="field" style="margin-bottom:16px">
-                    <label>Ціль на авто ($)</label>
-                    <input type="number" id="settingCarGoalInput" value="7000">
                 </div>
                 <button class="btn" onclick="saveSettings()">Зберегти</button>
             </div>
@@ -1288,6 +1282,47 @@
             </div>
         </div>
         <button class="btn" onclick="applyCustomPeriod()">Застосувати</button>
+    </div>
+</div>
+
+
+<!-- GOAL MODAL -->
+<div class="modal" id="goalModal" onclick="if(event.target===this)closeGoalModal()">
+    <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <div class="modal-head">
+            <span class="modal-title" id="goalModalTitle">Нова ціль</span>
+            <button class="modal-close" onclick="closeGoalModal()">✕</button>
+        </div>
+        <div class="field">
+            <label>Назва</label>
+            <input type="text" id="gName" placeholder="Наприклад: Відпустка, Ноутбук">
+        </div>
+        <div class="field">
+            <label>Іконка</label>
+            <select id="gIcon">
+                <option value="◆">◆ Ціль</option>
+                <option value="★">★ Зірка</option>
+                <option value="⌂">⌂ Дім</option>
+                <option value="◎">◎ Коло</option>
+                <option value="✈">✈ Подорож</option>
+                <option value="✎">✎ Навчання</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>Сума цілі</label>
+            <input type="number" id="gTarget" placeholder="7000" inputmode="decimal">
+        </div>
+        <div class="field">
+            <label>Валюта цілі</label>
+            <select id="gCurrency">
+                <option value="$">USD ($)</option>
+                <option value="₴">UAH (₴)</option>
+                <option value="€">EUR (€)</option>
+            </select>
+        </div>
+        <button class="btn btn-green" id="goalSaveBtn" onclick="saveGoal()">Зберегти ціль</button>
+        <button class="btn btn-danger" id="goalDeleteBtn" style="display:none" onclick="deleteGoal()">Видалити ціль</button>
     </div>
 </div>
 
@@ -1384,6 +1419,10 @@
 
     let state = {
         limit: 40000,
+        goals: [
+            { id: 'goal-car', name: 'Автомобіль', icon: '◆', targetAmount: 7000, targetCurrency: '$', savedUAH: 0 }
+        ],
+        // legacy fields kept only for migration of old data
         goalCarUSD: 7000,
         carSavedUAH: 0,
         cards: [
@@ -1392,6 +1431,9 @@
         ],
         transactions: []
     };
+
+    let selectedGoalId = null;
+    let editingGoalId = null;
 
     let currentTypeModal = 'expense';
     let analyticsType = 'expense';
@@ -1602,6 +1644,49 @@
     })();
 
     // Firebase Data sync під унікальний UID користувача
+
+    function migrateGoals() {
+        if (!state.goals || !Array.isArray(state.goals)) state.goals = [];
+        // Migrate legacy single car goal if present and not already in goals
+        const hasLegacy = (state.goalCarUSD != null || state.carSavedUAH != null);
+        const hasCarGoal = state.goals.some(g => g.id === 'goal-car' || (g.name && g.name.toLowerCase().includes('авто')));
+        if (hasLegacy && !hasCarGoal && state.goals.length === 0) {
+            state.goals.push({
+                id: 'goal-car',
+                name: 'Автомобіль',
+                icon: '◆',
+                targetAmount: Number(state.goalCarUSD) || 7000,
+                targetCurrency: '$',
+                savedUAH: Number(state.carSavedUAH) || 0
+            });
+        } else if (hasLegacy && hasCarGoal) {
+            // Sync legacy numbers into existing car goal if car goal has 0 saved but legacy has value
+            const g = state.goals.find(x => x.id === 'goal-car' || (x.name && x.name.toLowerCase().includes('авто')));
+            if (g) {
+                if ((!g.savedUAH || g.savedUAH === 0) && state.carSavedUAH) g.savedUAH = Number(state.carSavedUAH) || 0;
+                if ((!g.targetAmount || g.targetAmount === 0) && state.goalCarUSD) g.targetAmount = Number(state.goalCarUSD) || 7000;
+            }
+        } else if (state.goals.length === 0) {
+            state.goals.push({
+                id: 'goal-car',
+                name: 'Автомобіль',
+                icon: '◆',
+                targetAmount: 7000,
+                targetCurrency: '$',
+                savedUAH: 0
+            });
+        }
+        // Keep legacy fields in sync with car goal for backward compatibility
+        const car = state.goals.find(x => x.id === 'goal-car') || state.goals[0];
+        if (car) {
+            state.goalCarUSD = car.targetAmount;
+            state.carSavedUAH = car.savedUAH || 0;
+        }
+        if (!selectedGoalId || !state.goals.find(g => g.id === selectedGoalId)) {
+            selectedGoalId = state.goals[0] ? state.goals[0].id : null;
+        }
+    }
+
     function loadFromFirebase() {
         if (!currentUser) return;
         showSync(true);
@@ -1617,6 +1702,8 @@
                 // Якщо дані є в хмарі — завантажуємо їх
                 state = data;
                 if (!state.transactions) state.transactions = [];
+                if (!state.cards) state.cards = [];
+                migrateGoals();
                 updateUI();
             } else {
                 // ЖОДНОГО автоматичного збереження! Якщо дані не знайшлися, 
@@ -1667,7 +1754,6 @@
         if (screenId === 'screen-settings') {
             renderCardsManageList();
             document.getElementById('settingLimitInput').value = state.limit;
-            document.getElementById('settingCarGoalInput').value = state.goalCarUSD;
             updateThemeUI();
         }
         updateUI();
@@ -2214,26 +2300,173 @@
     }
 
     function updateCarGoal() {
-        const goalUSD = state.goalCarUSD || 7000;
-        const savedUAH = state.carSavedUAH || 0;
-        const courseUSD = getFxRate('$');
-        const savedUSD = Math.round(savedUAH / courseUSD);
-        const pct = Math.min(Math.round((savedUSD / goalUSD) * 100), 100);
-
-        document.getElementById('carSavedSum').innerText = `${savedUSD.toLocaleString('uk-UA')} $ / ${goalUSD.toLocaleString('uk-UA')} $`;
-        document.getElementById('carPercent').innerText = `${pct}%`;
-        document.getElementById('carProgressBar').style.width = `${pct}%`;
-        document.getElementById('carUAHEquivalent').innerText = `Еквівалент: ${savedUAH.toLocaleString('uk-UA')} ₴`;
+        // alias for compatibility
+        renderGoals();
     }
 
-    function depositToCar() {
-        const input = document.getElementById('addToCarInput');
-        const val = parseFloat(input.value);
+    function goalProgress(goal) {
+        const target = Number(goal.targetAmount) || 0;
+        const savedUAH = Number(goal.savedUAH) || 0;
+        const cur = goal.targetCurrency || '$';
+        let savedInTarget = savedUAH;
+        if (cur === '$') savedInTarget = savedUAH / getFxRate('$');
+        else if (cur === '€') savedInTarget = savedUAH / getFxRate('€');
+        const pct = target > 0 ? Math.min(Math.round((savedInTarget / target) * 100), 100) : 0;
+        return { savedInTarget: Math.round(savedInTarget), pct: pct, target: target, cur: cur, savedUAH: savedUAH };
+    }
+
+    function renderGoals() {
+        migrateGoals();
+        const list = document.getElementById('goalsList');
+        const select = document.getElementById('depositGoalSelect');
+        if (!list) return;
+
+        list.innerHTML = '';
+        if (select) select.innerHTML = '';
+
+        if (!state.goals || state.goals.length === 0) {
+            list.innerHTML = '<div class="empty">Немає цілей. Додайте першу.</div>';
+            return;
+        }
+
+        state.goals.forEach(function(goal) {
+            const p = goalProgress(goal);
+            const card = document.createElement('div');
+            card.className = 'goal-card';
+            card.style.marginBottom = '12px';
+            card.style.cursor = 'pointer';
+            if (selectedGoalId === goal.id) {
+                card.style.borderColor = 'rgba(0,122,255,0.45)';
+            }
+            card.onclick = function() {
+                selectedGoalId = goal.id;
+                if (select) select.value = goal.id;
+                renderGoals();
+            };
+            card.innerHTML =
+                '<div class="goal-head">' +
+                    '<span class="goal-title">' + (goal.icon || '◆') + ' ' + (goal.name || 'Ціль') + '</span>' +
+                    '<span class="goal-badge">' + p.pct + '%</span>' +
+                '</div>' +
+                '<div class="goal-sum">' + p.savedInTarget.toLocaleString('uk-UA') + ' ' + p.cur + ' / ' + p.target.toLocaleString('uk-UA') + ' ' + p.cur + '</div>' +
+                '<div class="goal-track"><div class="goal-fill" style="width:' + p.pct + '%"></div></div>' +
+                '<div class="goal-uah" style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">' +
+                    '<span>Еквівалент: ' + Math.round(p.savedUAH).toLocaleString('uk-UA') + ' ₴</span>' +
+                    '<button type="button" class="btn btn-outline" style="padding:6px 10px;font-size:12px;width:auto" onclick="event.stopPropagation();openGoalModal(\'' + goal.id + '\')">Змінити</button>' +
+                '</div>';
+            list.appendChild(card);
+
+            if (select) {
+                const opt = document.createElement('option');
+                opt.value = goal.id;
+                opt.textContent = (goal.icon || '◆') + ' ' + goal.name;
+                if (goal.id === selectedGoalId) opt.selected = true;
+                select.appendChild(opt);
+            }
+        });
+    }
+
+    function depositToGoal() {
+        const input = document.getElementById('addToGoalInput');
+        const select = document.getElementById('depositGoalSelect');
+        const val = parseFloat(input && input.value);
+        const goalId = select ? select.value : selectedGoalId;
         if (isNaN(val) || val <= 0) return alert('Введіть суму');
-        state.carSavedUAH = (state.carSavedUAH || 0) + val;
-        input.value = '';
+        const goal = (state.goals || []).find(g => g.id === goalId);
+        if (!goal) return alert('Оберіть ціль');
+        goal.savedUAH = (Number(goal.savedUAH) || 0) + val;
+        // sync legacy
+        if (goal.id === 'goal-car') state.carSavedUAH = goal.savedUAH;
+        if (input) input.value = '';
         saveData();
         alert('Переведено у скарбничку!');
+    }
+
+    // backward-compatible alias
+    function depositToCar() { depositToGoal(); }
+
+    function openGoalModal(goalId) {
+        editingGoalId = goalId || null;
+        const title = document.getElementById('goalModalTitle');
+        const delBtn = document.getElementById('goalDeleteBtn');
+        const name = document.getElementById('gName');
+        const icon = document.getElementById('gIcon');
+        const target = document.getElementById('gTarget');
+        const currency = document.getElementById('gCurrency');
+
+        if (goalId) {
+            const g = state.goals.find(x => x.id === goalId);
+            if (!g) return;
+            if (title) title.textContent = 'Редагувати ціль';
+            if (delBtn) delBtn.style.display = 'block';
+            if (name) name.value = g.name || '';
+            if (icon) icon.value = g.icon || '◆';
+            if (target) target.value = g.targetAmount || '';
+            if (currency) currency.value = g.targetCurrency || '$';
+        } else {
+            if (title) title.textContent = 'Нова ціль';
+            if (delBtn) delBtn.style.display = 'none';
+            if (name) name.value = '';
+            if (icon) icon.value = '◆';
+            if (target) target.value = '';
+            if (currency) currency.value = '$';
+        }
+        document.getElementById('goalModal').style.display = 'flex';
+    }
+
+    function closeGoalModal() {
+        document.getElementById('goalModal').style.display = 'none';
+        editingGoalId = null;
+    }
+
+    function saveGoal() {
+        const name = (document.getElementById('gName').value || '').trim();
+        const icon = document.getElementById('gIcon').value || '◆';
+        const targetAmount = parseFloat(document.getElementById('gTarget').value);
+        const targetCurrency = document.getElementById('gCurrency').value || '$';
+        if (!name) return alert('Вкажіть назву цілі');
+        if (isNaN(targetAmount) || targetAmount <= 0) return alert('Вкажіть коректну суму');
+
+        if (!state.goals) state.goals = [];
+
+        if (editingGoalId) {
+            const g = state.goals.find(x => x.id === editingGoalId);
+            if (g) {
+                g.name = name;
+                g.icon = icon;
+                g.targetAmount = targetAmount;
+                g.targetCurrency = targetCurrency;
+                if (g.id === 'goal-car') state.goalCarUSD = targetAmount;
+            }
+        } else {
+            const id = 'goal-' + Date.now();
+            state.goals.push({
+                id: id,
+                name: name,
+                icon: icon,
+                targetAmount: targetAmount,
+                targetCurrency: targetCurrency,
+                savedUAH: 0
+            });
+            selectedGoalId = id;
+        }
+        closeGoalModal();
+        saveData();
+    }
+
+    function deleteGoal() {
+        if (!editingGoalId) return;
+        if (!confirm('Видалити цю ціль? Накопичена сума також зникне.')) return;
+        state.goals = state.goals.filter(g => g.id !== editingGoalId);
+        if (selectedGoalId === editingGoalId) {
+            selectedGoalId = state.goals[0] ? state.goals[0].id : null;
+        }
+        // if deleted car goal, clear legacy lightly
+        if (editingGoalId === 'goal-car') {
+            state.carSavedUAH = 0;
+        }
+        closeGoalModal();
+        saveData();
     }
 
     function renderCardsManageList() {
@@ -2350,7 +2583,6 @@
 
     function saveSettings() {
         state.limit = parseFloat(document.getElementById('settingLimitInput').value) || state.limit;
-        state.goalCarUSD = parseFloat(document.getElementById('settingCarGoalInput').value) || state.goalCarUSD;
         saveData();
         alert('Збережено!');
         switchScreen('screen-cards', document.querySelectorAll('.nav-btn')[0]);
