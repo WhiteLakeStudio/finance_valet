@@ -7,6 +7,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK Compat -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
     <style>
         :root, [data-theme="dark"] {
             --bg: #000000;
@@ -622,7 +628,7 @@
             align-items: center;
         }
 
-        /* ─── MODALS ─── */
+        /* ─── MODALS & AUTH ─── */
         .modal {
             display: none;
             position: fixed;
@@ -743,14 +749,12 @@
             display: none;
         }
 
-        /* Hide home-header on non-home screens */
         .app.not-home .home-header,
         .app.not-home .quick-actions { display: none; }
 
         .app.not-home .content {
             padding-top: 12px;
         }
-
 
         /* Period selector */
         .period-bar {
@@ -873,13 +877,37 @@
 <div class="app" id="appRoot">
     <div id="syncStatus">Синхронізація...</div>
 
+    <!-- SCREEN: AUTH (Revolut Style Login/Register) -->
+    <div class="screen" id="screen-auth" style="display:none; justify-content:center; align-items:center; height:100%; padding:24px;">
+        <div style="width:100%; max-width:360px; display:flex; flex-direction:column; gap:20px; text-align:center;">
+            <div>
+                <h1 style="font-size:28px; font-weight:700; letter-spacing:-0.6px; margin-bottom:8px;">Wallet Pro</h1>
+                <p style="font-size:14px; color:var(--text-secondary);" id="authSubtitle">Увійдіть у свій акаунт</p>
+            </div>
+            <div class="panel" style="display:flex; flex-direction:column; gap:14px; text-align:left; padding:20px;">
+                <div class="field">
+                    <label>Email</label>
+                    <input type="email" id="authEmail" placeholder="name@example.com">
+                </div>
+                <div class="field">
+                    <label>Пароль</label>
+                    <input type="password" id="authPassword" placeholder="••••••••">
+                </div>
+                <button class="btn" id="authMainBtn" onclick="handleAuthSubmit()" style="margin-top:6px;">Увійти</button>
+                <button class="btn btn-outline" id="authToggleBtn" onclick="toggleAuthMode()">Створити новий акаунт</button>
+                <div id="authError" style="color:var(--red); font-size:13px; text-align:center; min-height:16px;"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- HOME HEADER (only visible on cards screen) -->
     <div class="home-header" id="homeHeader">
         <div class="top-bar">
-            <div class="avatar">ВК</div>
+            <div class="avatar" id="userAvatar">ВК</div>
             <div class="top-actions">
                 <button class="icon-btn" onclick="toggleTheme()" title="Тема" id="themeBtn">◐</button>
                 <button class="icon-btn" onclick="openCardModal()" title="Додати">+</button>
+                <button class="icon-btn" onclick="logout()" title="Вийти з акаунта">⎋</button>
                 <button class="icon-btn" onclick="switchScreen('screen-settings', document.querySelectorAll('.nav-btn')[3])">⚙</button>
             </div>
         </div>
@@ -1145,7 +1173,23 @@
 </div>
 
 <script>
-    const FIREBASE_URL = "https://glass-finance-wallet-default-rtdb.europe-west1.firebasedatabase.app//wallet.json";
+    // 1. Вставте сюди конфігурацію вашого Firebase проєкту (із налаштувань Console -> Project settings -> General)
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        databaseURL: "https://glass-finance-wallet-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    let currentUser = null;
+    let isRegisterMode = false;
 
     let state = {
         limit: 40000,
@@ -1168,6 +1212,62 @@
     let calViewMonth = new Date().getMonth();
     let calPickStep = 0;
 
+    // Авторизаційний слухач (перевіряє, чи залогінений користувач)
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            currentUser = user;
+            document.getElementById('screen-auth').style.display = 'none';
+            document.getElementById('screen-cards').classList.add('active');
+            
+            // Встановлюємо ім'я в аватарку та шапку
+            const emailName = user.email.split('@')[0];
+            document.getElementById('userAvatar').textContent = emailName.substring(0, 2).toUpperCase();
+            
+            loadFromFirebase();
+        } else {
+            currentUser = null;
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('screen-auth').style.display = 'flex';
+            document.getElementById('appRoot').classList.add('not-home');
+        }
+    });
+
+    function toggleAuthMode() {
+        isRegisterMode = !isRegisterMode;
+        document.getElementById('authSubtitle').textContent = isRegisterMode ? 'Створіть свій логін та пароль' : 'Увійдіть у свій акаунт';
+        document.getElementById('authMainBtn').textContent = isRegisterMode ? 'Зареєструватися' : 'Увійти';
+        document.getElementById('authToggleBtn').textContent = isRegisterMode ? 'Вже є акаунт? Увійти' : 'Створити новий акаунт';
+        document.getElementById('authError').textContent = '';
+    }
+
+    async function handleAuthSubmit() {
+        const email = document.getElementById('authEmail').value.trim();
+        const password = document.getElementById('authPassword').value.trim();
+        const errEl = document.getElementById('authError');
+        errEl.textContent = '';
+
+        if (!email || !password) {
+            errEl.textContent = 'Введіть email та пароль';
+            return;
+        }
+
+        try {
+            if (isRegisterMode) {
+                await auth.createUserWithEmailAndPassword(email, password);
+            } else {
+                await auth.signInWithEmailAndPassword(email, password);
+            }
+        } catch (err) {
+            errEl.textContent = err.message;
+        }
+    }
+
+    async function logout() {
+        if (confirm('Вийти з акаунта?')) {
+            await auth.signOut();
+        }
+    }
+
     // Theme
     function toggleTheme() {
         const html = document.documentElement;
@@ -1184,7 +1284,6 @@
         if (toggle) toggle.classList.toggle('on', isLight);
         const btn = document.getElementById('themeBtn');
         if (btn) btn.textContent = isLight ? '☀' : '◐';
-        // redraw chart with new theme colors if present
         if (typeof updateUI === 'function') {
             try { updateUI(); } catch(e) {}
         }
@@ -1196,32 +1295,31 @@
         updateThemeUI();
     })();
 
-    // Firebase
-    async function loadFromFirebase() {
+    // Firebase Data sync під унікальний UID користувача
+    function loadFromFirebase() {
+        if (!currentUser) return;
         showSync(true);
-        try {
-            const response = await fetch(FIREBASE_URL);
-            const data = await response.json();
+        db.ref('users/' + currentUser.uid).once('value', snapshot => {
+            const data = snapshot.val();
             if (data) {
+                // Якщо у вашому акаунті вже є збережені дані в хмарі — завантажуємо їх
                 state = data;
                 if (!state.cards) state.cards = [];
                 if (!state.transactions) state.transactions = [];
+            } else {
+                // Якщо це перша реєстрація і хмара порожня — зберігаємо поточні дані у ваш новий акаунт
+                saveToFirebase();
             }
-        } catch (err) {
-            console.error("Помилка завантаження з Firebase:", err);
-        }
-        showSync(false);
-        updateUI();
+            showSync(false);
+            updateUI();
+        });
     }
 
     async function saveToFirebase() {
+        if (!currentUser) return;
         showSync(true);
         try {
-            await fetch(FIREBASE_URL, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(state)
-            });
+            await db.ref('users/' + currentUser.uid).set(state);
         } catch (err) {
             console.error("Помилка збереження у Firebase:", err);
             alert("Не вдалося зберегти в хмару (перевірте інтернет)");
@@ -1354,7 +1452,6 @@
         updateUI();
     }
 
-    // Better category icons & colors (Revolut style)
     function getCategoryStyle(cat) {
         if (!cat) return { bg: '#636366', icon: '•' };
         if (cat.includes('Їжа')) return { bg: '#ff9f0a', icon: '🍽' };
@@ -1404,7 +1501,6 @@
         });
     }
 
-    
     function getTxTimestamp(t) {
         if (t.timestamp) return t.timestamp;
         try {
@@ -1804,7 +1900,6 @@
         setTimeout(function(){ updateAnalyticsChartsOnly(); }, 40);
     }
 
-
     function updateCarGoal() {
         const goalUSD = state.goalCarUSD || 7000;
         const savedUAH = state.carSavedUAH || 0;
@@ -1926,7 +2021,7 @@
             cardId, name, amount, category,
             type: currentTypeModal,
             date: dateStr,
-                timestamp: Date.now()
+            timestamp: Date.now()
         });
 
         document.getElementById('tName').value = '';
@@ -1948,8 +2043,6 @@
         switchScreen('screen-cards', document.querySelectorAll('.nav-btn')[0]);
     }
 
-
-    // Backup listeners for calendar
     document.addEventListener('DOMContentLoaded', function() {
         var btn = document.getElementById('customPeriodBtn');
         if (btn) {
@@ -1958,9 +2051,6 @@
             });
         }
     });
-
-    loadFromFirebase();
-
 </script>
 </body>
 </html>
