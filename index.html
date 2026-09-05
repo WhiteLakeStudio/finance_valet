@@ -1302,12 +1302,14 @@
         
         db.ref('users/' + currentUser.uid).once('value', snapshot => {
             const data = snapshot.val();
-            console.log("Отримані дані з Firebase:", data); // дивимось сюди в консоль
+            console.log("Отримані дані з Firebase:", data);
             
-            if (data) {
+            if (data && data.cards) {
                 state = data;
-                if (!state.cards) state.cards = [];
                 if (!state.transactions) state.transactions = [];
+            } else {
+                // Якщо в хмарі порожньо — записуємо поточний стан (картки та налаштування) в акаунт
+                saveToFirebase();
             }
             showSync(false);
             updateUI();
