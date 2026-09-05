@@ -1299,15 +1299,15 @@
     function loadFromFirebase() {
         if (!currentUser) return;
         showSync(true);
+        
         db.ref('users/' + currentUser.uid).once('value', snapshot => {
             const data = snapshot.val();
-            if (data) {
-                // Якщо у вашому акаунті вже є збережені дані в хмарі — завантажуємо їх
+            if (data && data.cards && data.cards.length > 0) {
+                // Якщо в базі є картки та дані — завантажуємо їх у додаток
                 state = data;
-                if (!state.cards) state.cards = [];
                 if (!state.transactions) state.transactions = [];
             } else {
-                // Якщо це перша реєстрація і хмара порожня — зберігаємо поточні дані у ваш новий акаунт
+                // Якщо база повністю порожня — записуємо сюди поточні дефолтні дані один раз
                 saveToFirebase();
             }
             showSync(false);
