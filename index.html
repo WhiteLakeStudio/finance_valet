@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Wallet Pro</title>
+    <title>WhiteLake Finance</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -756,6 +756,127 @@
             padding-top: 12px;
         }
 
+        /* Logged-out: only auth visible */
+        .app.logged-out .home-header,
+        .app.logged-out .quick-actions,
+        .app.logged-out .content,
+        .app.logged-out .bottom-nav,
+        .app.logged-out #syncStatus {
+            display: none !important;
+        }
+
+        .app.logged-out #screen-auth {
+            display: flex !important;
+        }
+
+        /* Auth screen */
+        #screen-auth {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: stretch;
+            flex: 1;
+            min-height: 100%;
+            padding: 0;
+            gap: 0;
+            animation: fadeUp 0.35s ease;
+        }
+
+        .auth-hero {
+            background: var(--header-grad);
+            padding: 56px 28px 48px;
+            text-align: center;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .auth-logo {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            font-weight: 800;
+            margin: 0 auto 20px;
+            backdrop-filter: blur(8px);
+            letter-spacing: -1px;
+        }
+
+        .auth-hello {
+            font-size: 34px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            line-height: 1.15;
+            margin-bottom: 8px;
+        }
+
+        .auth-tagline {
+            font-size: 15px;
+            font-weight: 500;
+            opacity: 0.8;
+            line-height: 1.4;
+        }
+
+        .auth-body {
+            flex: 1;
+            padding: 28px 24px calc(28px + var(--safe-bottom));
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            background: var(--bg);
+        }
+
+        .auth-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .auth-mode-hint {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 2px;
+        }
+
+        #authError {
+            color: var(--red);
+            font-size: 13px;
+            text-align: center;
+            min-height: 18px;
+            line-height: 1.35;
+        }
+
+        .auth-footer-link {
+            background: none;
+            border: none;
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .auth-footer-link:active { opacity: 0.7; }
+
+        .btn.loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .btn.loading::after {
+            content: '…';
+        }
+
         /* Period selector */
         .period-bar {
             display: flex;
@@ -874,29 +995,31 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-<div class="app" id="appRoot">
+<div class="app logged-out not-home" id="appRoot">
     <div id="syncStatus">Синхронізація...</div>
 
-    <!-- SCREEN: AUTH (Revolut Style Login/Register) -->
-    <div class="screen" id="screen-auth" style="display:none; justify-content:center; align-items:center; height:100%; padding:24px;">
-        <div style="width:100%; max-width:360px; display:flex; flex-direction:column; gap:20px; text-align:center;">
-            <div>
-                <h1 style="font-size:28px; font-weight:700; letter-spacing:-0.6px; margin-bottom:8px;">Wallet Pro</h1>
-                <p style="font-size:14px; color:var(--text-secondary);" id="authSubtitle">Увійдіть у свій акаунт</p>
-            </div>
-            <div class="panel" style="display:flex; flex-direction:column; gap:14px; text-align:left; padding:20px;">
+    <!-- SCREEN: AUTH -->
+    <div class="screen" id="screen-auth">
+        <div class="auth-hero">
+            <div class="auth-logo">W</div>
+            <div class="auth-hello" id="authHello">Привіт</div>
+            <div class="auth-tagline">Керуйте грошима просто<br>і в одному місці</div>
+        </div>
+        <div class="auth-body">
+            <div class="auth-mode-hint" id="authSubtitle">Увійдіть у свій акаунт</div>
+            <div class="auth-panel">
                 <div class="field">
                     <label>Email</label>
-                    <input type="email" id="authEmail" placeholder="name@example.com">
+                    <input type="email" id="authEmail" placeholder="name@example.com" autocomplete="email" inputmode="email">
                 </div>
                 <div class="field">
                     <label>Пароль</label>
-                    <input type="password" id="authPassword" placeholder="••••••••">
+                    <input type="password" id="authPassword" placeholder="Мінімум 6 символів" autocomplete="current-password">
                 </div>
-                <button class="btn" id="authMainBtn" onclick="handleAuthSubmit()" style="margin-top:6px;">Увійти</button>
-                <button class="btn btn-outline" id="authToggleBtn" onclick="toggleAuthMode()">Створити новий акаунт</button>
-                <div id="authError" style="color:var(--red); font-size:13px; text-align:center; min-height:16px;"></div>
+                <button class="btn" id="authMainBtn" type="button" onclick="handleAuthSubmit()">Увійти</button>
+                <div id="authError"></div>
             </div>
+            <button type="button" class="auth-footer-link" id="authToggleBtn" onclick="toggleAuthMode()">Створити новий акаунт</button>
         </div>
     </div>
 
@@ -1212,43 +1335,101 @@
     let calViewMonth = new Date().getMonth();
     let calPickStep = 0;
 
-    // Авторизаційний слухач (перевіряє, чи залогінений користувач)
+    // Авторизаційний слухач
     auth.onAuthStateChanged(user => {
+        const app = document.getElementById('appRoot');
         if (user) {
             currentUser = user;
+            app.classList.remove('logged-out');
             document.getElementById('screen-auth').style.display = 'none';
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById('screen-cards').classList.add('active');
-            
-            // Встановлюємо ім'я в аватарку та шапку
-            const emailName = user.email.split('@')[0];
-            document.getElementById('userAvatar').textContent = emailName.substring(0, 2).toUpperCase();
-            
+            app.classList.remove('not-home');
+
+            // Avatar from email
+            const emailName = (user.email || '??').split('@')[0];
+            const av = document.getElementById('userAvatar');
+            if (av) av.textContent = emailName.substring(0, 2).toUpperCase();
+
+            // Reset nav active to home
+            document.querySelectorAll('.nav-btn').forEach((b, i) => {
+                b.classList.toggle('active', i === 0);
+            });
+
             loadFromFirebase();
         } else {
             currentUser = null;
+            app.classList.add('logged-out');
+            app.classList.add('not-home');
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            document.getElementById('screen-auth').style.display = 'flex';
-            document.getElementById('appRoot').classList.add('not-home');
+            const authScreen = document.getElementById('screen-auth');
+            authScreen.style.display = 'flex';
+            // reset auth form state
+            isRegisterMode = false;
+            toggleAuthModeUI();
         }
     });
 
+    function toggleAuthModeUI() {
+        const sub = document.getElementById('authSubtitle');
+        const main = document.getElementById('authMainBtn');
+        const tog = document.getElementById('authToggleBtn');
+        const hello = document.getElementById('authHello');
+        const err = document.getElementById('authError');
+        if (sub) sub.textContent = isRegisterMode ? 'Створіть акаунт за хвилину' : 'Увійдіть у свій акаунт';
+        if (main) {
+            main.textContent = isRegisterMode ? 'Створити акаунт' : 'Увійти';
+            main.classList.remove('loading');
+        }
+        if (tog) tog.textContent = isRegisterMode ? 'Вже є акаунт? Увійти' : 'Створити новий акаунт';
+        if (hello) hello.textContent = isRegisterMode ? 'Ласкаво просимо' : 'Привіт';
+        if (err) err.textContent = '';
+        const pass = document.getElementById('authPassword');
+        if (pass) pass.setAttribute('autocomplete', isRegisterMode ? 'new-password' : 'current-password');
+    }
+
     function toggleAuthMode() {
         isRegisterMode = !isRegisterMode;
-        document.getElementById('authSubtitle').textContent = isRegisterMode ? 'Створіть свій логін та пароль' : 'Увійдіть у свій акаунт';
-        document.getElementById('authMainBtn').textContent = isRegisterMode ? 'Зареєструватися' : 'Увійти';
-        document.getElementById('authToggleBtn').textContent = isRegisterMode ? 'Вже є акаунт? Увійти' : 'Створити новий акаунт';
-        document.getElementById('authError').textContent = '';
+        toggleAuthModeUI();
+    }
+
+    function mapAuthError(code, message) {
+        const map = {
+            'auth/invalid-email': 'Некоректний email',
+            'auth/user-disabled': 'Акаунт заблоковано',
+            'auth/user-not-found': 'Користувача не знайдено',
+            'auth/wrong-password': 'Невірний пароль',
+            'auth/invalid-credential': 'Невірний email або пароль',
+            'auth/email-already-in-use': 'Цей email вже зареєстровано',
+            'auth/weak-password': 'Пароль має бути щонайменше 6 символів',
+            'auth/too-many-requests': 'Забагато спроб. Спробуйте пізніше',
+            'auth/network-request-failed': 'Немає з\'єднання з мережею',
+            'auth/operation-not-allowed': 'Вхід через email вимкнено в Firebase'
+        };
+        if (code && map[code]) return map[code];
+        if (message && message.length < 120) return message;
+        return 'Помилка входу. Спробуйте ще раз';
     }
 
     async function handleAuthSubmit() {
         const email = document.getElementById('authEmail').value.trim();
-        const password = document.getElementById('authPassword').value.trim();
+        const password = document.getElementById('authPassword').value;
         const errEl = document.getElementById('authError');
-        errEl.textContent = '';
+        const btn = document.getElementById('authMainBtn');
+        if (errEl) errEl.textContent = '';
 
         if (!email || !password) {
-            errEl.textContent = 'Введіть email та пароль';
+            if (errEl) errEl.textContent = 'Введіть email та пароль';
             return;
+        }
+        if (password.length < 6) {
+            if (errEl) errEl.textContent = 'Пароль має бути щонайменше 6 символів';
+            return;
+        }
+
+        if (btn) {
+            btn.classList.add('loading');
+            btn.disabled = true;
         }
 
         try {
@@ -1257,8 +1438,15 @@
             } else {
                 await auth.signInWithEmailAndPassword(email, password);
             }
+            // onAuthStateChanged will switch UI
         } catch (err) {
-            errEl.textContent = err.message;
+            if (errEl) errEl.textContent = mapAuthError(err.code, err.message);
+        } finally {
+            if (btn) {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                btn.textContent = isRegisterMode ? 'Створити акаунт' : 'Увійти';
+            }
         }
     }
 
@@ -2056,6 +2244,18 @@
                 openCalendarModal(ev);
             });
         }
+        // Enter on auth fields
+        ['authEmail', 'authPassword'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('keydown', function(ev) {
+                    if (ev.key === 'Enter') {
+                        ev.preventDefault();
+                        handleAuthSubmit();
+                    }
+                });
+            }
+        });
     });
 </script>
 </body>
