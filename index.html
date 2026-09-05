@@ -1311,6 +1311,10 @@
     const auth = firebase.auth();
     const db = firebase.database();
 
+    // Підвантажуємо курси одразу (і періодично)
+    fetchLiveRates();
+    setInterval(fetchLiveRates, 60 * 60 * 1000); // раз на годину
+
     let currentUser = null;
     let isRegisterMode = false;
 
@@ -1335,6 +1339,37 @@
     let calViewMonth = new Date().getMonth();
     let calPickStep = 0;
 
+    // Live FX rates (UAH per 1 unit). Fallback until API responds.
+    let rateUSD = 41.5;
+    let rateEUR = 45.0;
+    let ratesUpdatedAt = null;
+
+    function getFxRate(currency) {
+        if (currency === '$' || currency === 'USD') return rateUSD;
+        if (currency === '€' || currency === 'EUR') return rateEUR;
+        return 1;
+    }
+
+    async function fetchLiveRates() {
+        try {
+            // Official NBU daily rates
+            const res = await fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json');
+            if (!res.ok) throw new Error('NBU HTTP ' + res.status);
+            const data = await res.json();
+            const usd = data.find(x => x.cc === 'USD');
+            const eur = data.find(x => x.cc === 'EUR');
+            if (usd && usd.rate) rateUSD = Number(usd.rate);
+            if (eur && eur.rate) rateEUR = Number(eur.rate);
+            ratesUpdatedAt = new Date();
+            console.log('Курси НБУ:', { USD: rateUSD, EUR: rateEUR });
+            if (typeof updateUI === 'function') {
+                try { updateUI(); } catch (e) {}
+            }
+        } catch (err) {
+            console.warn('Не вдалося оновити курси, лишаємо попередні:', err);
+        }
+    }
+
     // Авторизаційний слухач
     auth.onAuthStateChanged(user => {
         const app = document.getElementById('appRoot');
@@ -1356,6 +1391,7 @@
                 b.classList.toggle('active', i === 0);
             });
 
+            fetchLiveRates();
             loadFromFirebase();
         } else {
             currentUser = null;
@@ -1571,8 +1607,8 @@
         (state.transactions || []).forEach(t => {
             const card = state.cards.find(c => c.id === t.cardId);
             let mult = 1;
-            if (card && card.currency === '$') mult = 41.5;
-            if (card && card.currency === '€') mult = 45.0;
+            if (card && card.currency === '$') mult = getFxRate('$');
+            if (card && card.currency === '€') mult = getFxRate('€');
             const val = t.amount * mult;
             if (t.type === 'income') totalUAH += val;
             else totalUAH -= val;
@@ -1601,8 +1637,8 @@
         (state.transactions || []).forEach(t => {
             const card = state.cards.find(c => c.id === t.cardId);
             let multiplier = 1;
-            if (card && card.currency === '$') multiplier = 41.5;
-            if (card && card.currency === '€') multiplier = 45.0;
+            if (card && card.currency === '$') multiplier = getFxRate('$');
+            if (card && card.currency === '€') multiplier = getFxRate('€');
             let valInUAH = t.amount * multiplier;
             if (t.type === 'income') totalUAHApprox += valInUAH;
             else totalUAHApprox -= valInUAH;
@@ -1769,8 +1805,8 @@
         (state.transactions || []).forEach(t => {
             const card = state.cards.find(c => c.id === t.cardId);
             let mult = 1;
-            if (card && card.currency === '$') mult = 41.5;
-            if (card && card.currency === '€') mult = 45.0;
+            if (card && card.currency === '$') mult = getFxRate('$');
+            if (card && card.currency === '€') mult = getFxRate('€');
             let valUAH = t.amount * mult;
             if (t.type === 'income') totalIncomeUAH += valUAH;
             else totalExpenseUAH += valUAH;
@@ -1793,8 +1829,8 @@
         periodTxs.forEach(t => {
             const card = state.cards.find(c => c.id === t.cardId);
             let mult = 1;
-            if (card && card.currency === '$') mult = 41.5;
-            if (card && card.currency === '€') mult = 45.0;
+            if (card && card.currency === '$') mult = getFxRate('$');
+            if (card && card.currency === '€') mult = getFxRate('€');
             const val = t.amount * mult;
             if (t.type === 'income') totalIncome += val;
             else totalExpense += val;
@@ -1817,7 +1853,7 @@
         const map = {};
         filtered.forEach(t => {
             const card = state.cards.find(c => c.id === t.cardId);
-            let mult = (card && card.currency !== '₴') ? (card.currency === '$' ? 41.5 : 45.0) : 1;
+            let mult = (card && card.currency !== '₴') ? getFxRate(card.currency) : 1;
             const cat = t.category || 'Інше';
             map[cat] = (map[cat] || 0) + (t.amount * mult);
         });
@@ -2097,7 +2133,7 @@
     function updateCarGoal() {
         const goalUSD = state.goalCarUSD || 7000;
         const savedUAH = state.carSavedUAH || 0;
-        const courseUSD = 41.5;
+        const courseUSD = getFxRate('$');
         const savedUSD = Math.round(savedUAH / courseUSD);
         const pct = Math.min(Math.round((savedUSD / goalUSD) * 100), 100);
 
